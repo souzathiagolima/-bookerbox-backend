@@ -4,6 +4,17 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Precisa vir ANTES de "/:id", senão o Express acha que "search" é um id de usuário.
+router.get('/search', async (req, res) => {
+  const q = req.query.q;
+  if (!q || !q.trim()) return res.status(400).json({ error: 'Parâmetro "q" é obrigatório.' });
+  const result = await pool.query(
+    `SELECT id, name, avatar_url FROM users WHERE name ILIKE $1 ORDER BY name LIMIT 20`,
+    [`%${q.trim()}%`]
+  );
+  res.json({ users: result.rows });
+});
+
 router.get('/:id', async (req, res) => {
   const userResult = await pool.query(
     'SELECT id, name, avatar_url, created_at FROM users WHERE id = $1',
