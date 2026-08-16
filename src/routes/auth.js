@@ -22,13 +22,26 @@ async function sendWelcomeEmail(user) {
         to: user.email,
         subject: 'Bem-vindo(a) ao Bookerbox! 📚',
         html: `
-          <div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; color: #241C13;">
-            <h1 style="color: #8B3A3A; font-size: 22px;">Bem-vindo(a), ${user.name}!</h1>
-            <p style="font-size: 15px; line-height: 1.6;">
-              Sua conta no Bookerbox foi criada com sucesso. A partir de agora você pode
-              avaliar livros, montar suas estantes de leitura e seguir outros leitores.
-            </p>
-            <p style="font-size: 15px; line-height: 1.6;">Boas leituras! 📖</p>
+          <div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; background: #EFE6D2;">
+            <div style="background: #132420; padding: 24px 32px; text-align: center;">
+              <span style="font-size: 24px; font-weight: bold; color: #C7A25A; letter-spacing: 0.5px;">📖 Bookerbox</span>
+            </div>
+            <div style="padding: 28px 32px; color: #241C13;">
+              <h1 style="color: #8B3A3A; font-size: 22px; margin: 0 0 12px;">Bem-vindo(a), ${user.name}!</h1>
+              <p style="font-size: 15px; line-height: 1.6; margin: 0 0 12px;">
+                Sua conta no Bookerbox foi criada com sucesso. A partir de agora você pode
+                avaliar livros, montar suas estantes de leitura e seguir outros leitores.
+              </p>
+              <p style="font-size: 15px; line-height: 1.6; margin: 0 0 24px;">Boas leituras! 📚</p>
+              <div style="text-align: center;">
+                <a href="https://bookerbox-frontend.onrender.com/" style="display: inline-block; background: #C7A25A; color: #241C13; font-family: Georgia, serif; font-weight: bold; font-size: 15px; padding: 12px 28px; border-radius: 6px; text-decoration: none;">
+                  Comece a avaliar livros
+                </a>
+              </div>
+            </div>
+            <div style="padding: 16px 32px; text-align: center;">
+              <span style="font-size: 11px; color: #8C7439;">Bookerbox · sua estante, sua rede</span>
+            </div>
           </div>
         `,
       }),
