@@ -11,9 +11,19 @@ router.get('/search', async (req, res) => {
   if (!q) return res.status(400).json({ error: 'Parâmetro "q" é obrigatório.' });
 
   try {
-    const apiRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=20`);
+    const key = process.env.GOOGLE_BOOKS_API_KEY ? `&key=${process.env.GOOGLE_BOOKS_API_KEY}` : '';
+    const apiRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=20${key}`);
     const data = await apiRes.json();
+
+    if (data.error) {
+      console.error('Google Books API retornou erro:', JSON.stringify(data.error));
+      return res.status(502).json({ error: 'A busca de livros falhou do lado do Google. Tente novamente em instantes.' });
+    }
+
     const items = data.items || [];
+    if (!items.length) {
+      console.log(`Google Books não achou nada para "${q}" (totalItems: ${data.totalItems ?? 'desconhecido'})`);
+    }
 
     const books = [];
     for (const it of items) {
