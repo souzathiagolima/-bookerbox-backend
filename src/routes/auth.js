@@ -119,11 +119,85 @@ router.get('/me', requireAuth, async (req, res) => {
 
 module.exports = router;
 
-/*
-  Próximo passo (Fase 3 do plano): adicionar aqui
-  POST /auth/facebook  -> recebe o token do Facebook Login SDK do app,
-                           valida na Graph API da Meta, cria/atualiza o
-                           usuário por facebook_id e devolve um token nosso.
-  POST /auth/apple     -> mesma ideia, mas para "Sign in with Apple"
-                           (obrigatório pela Apple se oferecemos login Facebook).
-*/
+router.post('/google', async (req, res) => {
+  const { idToken } = req.body;
+  if (!idToken) return res.status(400).json({ error: 'idToken é obrigatório.' });
+  try {
+    const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    const payload = await verifyRes.json();
+    if (!verifyRes.ok || payload.error) {
+      return res.status(401).json({ error: 'Token do Google inválido.' });
+    }
+    if (process.env.GOOGLE_CLIENT_ID && payload.aud !== process.env.GOOGLE_CLIENT_ID) {
+      return res.status(401).json({ error: 'Token do Google não pertence a este app.' });
+    }
+    const email = payload.email?.toLowerCase();
+    const name = payload.name || email;
+    const googleId = payload.sub;
+    if (!email) return res.status(400).json({ error: 'Não foi possível obter o e-mail do Google.' });
+
+    const existing = await pool.query('SELECT * FROM users WHERE google_id = $1 OR email = $2', [googleId, email]);
+    let user;
+    if (existing.rows.length) {
+      user = existing.rows[0];
+      if (!user.google_id) {
+        await pool.query('UPDATE users SET google_id = $1 WHERE id = $2', [googleId, user.id]);
+      }
+    } else {
+      const inserted = await pool.query(
+        `INSERT INTO users (name, email, google_id) VALUES ($1, $2, $3)
+         RETURNING id, name, email, avatar_url, created_at`,
+        [name, email, googleId]
+      );
+      user = inserted.rows[0];
+      sendWelcomeEmail(user);
+    }
+    delete user.password_hash;
+    const token = signToken(user);
+    res.json({ token, user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao entrar com Google.' });
+  }
+});
+
+router.post('/facebook', async (req, res) => {
+  const { accessToken } = req.body;
+  if (!accessToken) return res.status(400).json({ error: 'accessToken é obrigatório.' });
+  try {
+    const verifyRes = await fetch(`https://graph.facebook.com/me?fields=id,name,email&access_token=${encodeURIComponent(accessToken)}`);
+    const payload = await verifyRes.json();
+    if (!verifyRes.ok || payload.error) {
+      return res.status(401).json({ error: 'Token do Facebook inválido.' });
+    }
+    const email = payload.email?.toLowerCase();
+    const name = payload.name || 'Usuário Facebook';
+    const facebookId = payload.id;
+    if (!email) {
+      return res.status(400).json({ error: 'Sua conta do Facebook não compartilhou um e-mail. Tente com Google ou e-mail/senha.' });
+    }
+
+    const existing = await pool.query('SELECT * FROM users WHERE facebook_id = $1 OR email = $2', [facebookId, email]);
+    let user;
+    if (existing.rows.length) {
+      user = existing.rows[0];
+      if (!user.facebook_id) {
+        await pool.query('UPDATE users SET facebook_id = $1 WHERE id = $2', [facebookId, user.id]);
+      }
+    } else {
+      const inserted = await pool.query(
+        `INSERT INTO users (name, email, facebook_id) VALUES ($1, $2, $3)
+         RETURNING id, name, email, avatar_url, created_at`,
+        [name, email, facebookId]
+      );
+      user = inserted.rows[0];
+      sendWelcomeEmail(user);
+    }
+    delete user.password_hash;
+    const token = signToken(user);
+    res.json({ token, user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao entrar com Facebook.' });
+  }
+});
