@@ -61,6 +61,22 @@ router.post('/:id/like', requireAuth, async (req, res) => {
     'INSERT INTO likes (user_id, review_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
     [req.userId, req.params.id]
   );
+  try {
+    const review = await pool.query('SELECT user_id, book_id FROM reviews WHERE id = $1', [req.params.id]);
+    const ownerId = review.rows[0]?.user_id;
+    if (ownerId && ownerId !== req.userId) {
+      const [me, book] = await Promise.all([
+        pool.query('SELECT name FROM users WHERE id = $1', [req.userId]),
+        pool.query('SELECT title FROM books WHERE id = $1', [review.rows[0].book_id]),
+      ]);
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, payload) VALUES ($1, 'like', $2)`,
+        [ownerId, JSON.stringify({ actorId: req.userId, actorName: me.rows[0]?.name, bookTitle: book.rows[0]?.title, reviewId: req.params.id })]
+      );
+    }
+  } catch (err) {
+    console.error('Falha ao criar notificação de like:', err.message);
+  }
   res.status(201).json({ liked: true });
 });
 

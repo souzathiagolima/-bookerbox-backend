@@ -51,6 +51,15 @@ router.post('/:id/follow', requireAuth, async (req, res) => {
     'INSERT INTO follows (follower_id, following_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
     [req.userId, req.params.id]
   );
+  try {
+    const me = await pool.query('SELECT name FROM users WHERE id = $1', [req.userId]);
+    await pool.query(
+      `INSERT INTO notifications (user_id, type, payload) VALUES ($1, 'follow', $2)`,
+      [req.params.id, JSON.stringify({ actorId: req.userId, actorName: me.rows[0]?.name })]
+    );
+  } catch (err) {
+    console.error('Falha ao criar notificação de follow:', err.message);
+  }
   res.status(201).json({ following: true });
 });
 
