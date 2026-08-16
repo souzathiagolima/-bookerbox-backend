@@ -89,6 +89,7 @@ router.get('/:id/compatibility', requireAuth, async (req, res) => {
   if (otherId === req.userId) {
     return res.json({ percent: null, sharedBooks: [] });
   }
+  // compatibilidade baseada nos livros que cada um marcou como "lido" na estante
   const mine = await pool.query(`SELECT book_id FROM shelves WHERE user_id = $1 AND status = 'read'`, [req.userId]);
   const theirs = await pool.query(`SELECT book_id FROM shelves WHERE user_id = $1 AND status = 'read'`, [otherId]);
 
