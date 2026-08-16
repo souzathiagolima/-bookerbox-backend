@@ -31,13 +31,14 @@ router.get('/search', async (req, res) => {
       const isbn13 = (info.industryIdentifiers || []).find(i => i.type === 'ISBN_13')?.identifier || null;
 
       const result = await pool.query(
-        `INSERT INTO books (google_books_id, title, authors, cover_url, description, isbn)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO books (google_books_id, title, authors, cover_url, description, isbn, categories)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (google_books_id) DO UPDATE SET
            title = EXCLUDED.title,
            authors = EXCLUDED.authors,
            cover_url = EXCLUDED.cover_url,
-           description = EXCLUDED.description
+           description = EXCLUDED.description,
+           categories = EXCLUDED.categories
          RETURNING *`,
         [
           it.id,
@@ -46,6 +47,7 @@ router.get('/search', async (req, res) => {
           (info.imageLinks?.thumbnail || '').replace('http:', 'https:') || null,
           info.description || null,
           isbn13,
+          (info.categories || []).join(', ') || null,
         ]
       );
       books.push(result.rows[0]);

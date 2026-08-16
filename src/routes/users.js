@@ -15,6 +15,102 @@ router.get('/search', async (req, res) => {
   res.json({ users: result.rows });
 });
 
+router.get('/:id/reading-stats', async (req, res) => {
+  const userId = req.params.id;
+  const yearStart = `${new Date().getFullYear()}-01-01`;
+
+  const totalReadRes = await pool.query(
+    `SELECT COUNT(*) FROM shelves WHERE user_id = $1 AND status = 'read'`,
+    [userId]
+  );
+  const thisYearRes = await pool.query(
+    `SELECT COUNT(*) FROM shelves WHERE user_id = $1 AND status = 'read' AND updated_at >= $2`,
+    [userId, yearStart]
+  );
+  const avgRatingRes = await pool.query(
+    `SELECT AVG(rating)::numeric(10,2) AS avg FROM reviews WHERE user_id = $1`,
+    [userId]
+  );
+  const booksRes = await pool.query(
+    `SELECT b.authors, b.categories FROM shelves s JOIN books b ON b.id = s.book_id WHERE s.user_id = $1 AND s.status = 'read'`,
+    [userId]
+  );
+  const currentlyReadingRes = await pool.query(
+    `SELECT b.id, b.title, b.cover_url FROM shelves s JOIN books b ON b.id = s.book_id
+     WHERE s.user_id = $1 AND s.status = 'reading' ORDER BY s.updated_at DESC LIMIT 1`,
+    [userId]
+  );
+
+  // conta autores e gêneros a partir do texto "A, B" de cada livro lido
+  const authorCounts = {};
+  const genreCounts = {};
+  booksRes.rows.forEach(r => {
+    (r.authors || '').split(',').map(a => a.trim()).filter(Boolean).forEach(a => {
+      authorCounts[a] = (authorCounts[a] || 0) + 1;
+    });
+    (r.categories || '').split(',').map(g => g.trim()).filter(Boolean).forEach(g => {
+      genreCounts[g] = (genreCounts[g] || 0) + 1;
+    });
+  });
+  let topAuthor = null;
+  for (const [name, count] of Object.entries(authorCounts)) {
+    if (!topAuthor || count > topAuthor.count) topAuthor = { name, count };
+  }
+  let topGenre = null;
+  for (const [name, count] of Object.entries(genreCounts)) {
+    if (!topGenre || count > topGenre.count) topGenre = { name, count };
+  }
+
+  // favoritos = livros que a pessoa avaliou com 5 estrelas
+  const favoritesRes = await pool.query(
+    `SELECT DISTINCT ON (b.id) b.id, b.title, b.cover_url
+     FROM reviews r JOIN books b ON b.id = r.book_id
+     WHERE r.user_id = $1 AND r.rating = 5
+     ORDER BY b.id, r.created_at DESC
+     LIMIT 10`,
+    [userId]
+  );
+
+  res.json({
+    totalRead: Number(totalReadRes.rows[0].count),
+    readThisYear: Number(thisYearRes.rows[0].count),
+    averageRating: avgRatingRes.rows[0].avg ? Number(avgRatingRes.rows[0].avg) : null,
+    topAuthor,
+    topGenre,
+    currentlyReading: currentlyReadingRes.rows[0] || null,
+    favorites: favoritesRes.rows,
+  });
+});
+
+// Compatibilidade literária: quantos livros lidos em comum, em relação
+// ao total de livros diferentes que os dois já leram (índice de Jaccard).
+router.get('/:id/compatibility', requireAuth, async (req, res) => {
+  const otherId = req.params.id;
+  if (otherId === req.userId) {
+    return res.json({ percent: null, sharedBooks: [] });
+  }
+  const mine = await pool.query(`SELECT book_id FROM shelves WHERE user_id = $1 AND status = 'read'`, [req.userId]);
+  const theirs = await pool.query(`SELECT book_id FROM shelves WHERE user_id = $1 AND status = 'read'`, [otherId]);
+
+  const mineIds = new Set(mine.rows.map(r => r.book_id));
+  const theirIds = new Set(theirs.rows.map(r => r.book_id));
+  const sharedIds = [...mineIds].filter(id => theirIds.has(id));
+  const unionSize = new Set([...mineIds, ...theirIds]).size;
+
+  const percent = unionSize > 0 ? Math.round((sharedIds.length / unionSize) * 100) : null;
+
+  let sharedBooks = [];
+  if (sharedIds.length > 0) {
+    const booksRes = await pool.query(
+      `SELECT id, title, cover_url FROM books WHERE id = ANY($1::uuid[]) LIMIT 6`,
+      [sharedIds]
+    );
+    sharedBooks = booksRes.rows;
+  }
+
+  res.json({ percent, sharedBooks });
+});
+
 router.get('/:id', async (req, res) => {
   const userResult = await pool.query(
     'SELECT id, name, avatar_url, created_at FROM users WHERE id = $1',
