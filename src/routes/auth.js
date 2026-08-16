@@ -6,6 +6,41 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Envia o e-mail de boas-vindas via Resend. Se a chave não estiver configurada
+// (RESEND_API_KEY ausente), simplesmente não envia nada — não trava o cadastro.
+async function sendWelcomeEmail(user) {
+  if (!process.env.RESEND_API_KEY) return;
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Bookerbox <onboarding@resend.dev>',
+        to: user.email,
+        subject: 'Bem-vindo(a) ao Bookerbox! 📚',
+        html: `
+          <div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; color: #241C13;">
+            <h1 style="color: #8B3A3A; font-size: 22px;">Bem-vindo(a), ${user.name}!</h1>
+            <p style="font-size: 15px; line-height: 1.6;">
+              Sua conta no Bookerbox foi criada com sucesso. A partir de agora você pode
+              avaliar livros, montar suas estantes de leitura e seguir outros leitores.
+            </p>
+            <p style="font-size: 15px; line-height: 1.6;">Boas leituras! 📖</p>
+          </div>
+        `,
+      }),
+    });
+    if (!res.ok) {
+      console.error('Resend retornou erro ao enviar e-mail de boas-vindas:', await res.text());
+    }
+  } catch (err) {
+    console.error('Falha ao enviar e-mail de boas-vindas:', err.message);
+  }
+}
+
 router.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password) {
@@ -28,6 +63,7 @@ router.post('/register', async (req, res) => {
     );
     const user = result.rows[0];
     const token = signToken(user);
+    sendWelcomeEmail(user); // não bloqueia a resposta — dispara e segue
     res.status(201).json({ token, user });
   } catch (err) {
     console.error(err);
