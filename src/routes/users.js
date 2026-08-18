@@ -15,6 +15,21 @@ router.get('/search', async (req, res) => {
   res.json({ users: result.rows });
 });
 
+router.get('/:id/shelves', async (req, res) => {
+  const result = await pool.query(
+    `SELECT s.status, b.id, b.title, b.authors, b.cover_url
+     FROM shelves s JOIN books b ON b.id = s.book_id
+     WHERE s.user_id = $1
+     ORDER BY s.updated_at DESC`,
+    [req.params.id]
+  );
+  const grouped = { want: [], reading: [], read: [] };
+  result.rows.forEach(r => {
+    if (grouped[r.status]) grouped[r.status].push({ id: r.id, title: r.title, authors: r.authors, cover_url: r.cover_url });
+  });
+  res.json(grouped);
+});
+
 router.get('/:id/reading-stats', async (req, res) => {
   const userId = req.params.id;
   const yearStart = `${new Date().getFullYear()}-01-01`;
