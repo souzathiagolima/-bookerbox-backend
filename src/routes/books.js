@@ -59,6 +59,21 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// Livros mais resenhados/avaliados de todo o app — precisa vir ANTES de "/:id".
+router.get('/trending', async (req, res) => {
+  const result = await pool.query(`
+    SELECT b.id, b.title, b.authors, b.cover_url,
+      COUNT(r.id)::int AS review_count,
+      COALESCE(AVG(r.rating), 0)::float AS avg_rating
+    FROM books b
+    JOIN reviews r ON r.book_id = b.id
+    GROUP BY b.id
+    ORDER BY review_count DESC, avg_rating DESC
+    LIMIT 12
+  `);
+  res.json({ books: result.rows });
+});
+
 router.get('/:id', async (req, res) => {
   const result = await pool.query('SELECT * FROM books WHERE id = $1', [req.params.id]);
   if (!result.rows.length) return res.status(404).json({ error: 'Livro não encontrado.' });
