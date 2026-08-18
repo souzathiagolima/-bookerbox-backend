@@ -117,6 +117,26 @@ router.get('/me', requireAuth, async (req, res) => {
   res.json({ user: result.rows[0] });
 });
 
+router.patch('/avatar', requireAuth, async (req, res) => {
+  const { avatarUrl } = req.body;
+  if (!avatarUrl || typeof avatarUrl !== 'string') {
+    return res.status(400).json({ error: 'avatarUrl é obrigatório.' });
+  }
+  if (avatarUrl.length > 2_000_000) {
+    return res.status(413).json({ error: 'Imagem muito grande. Escolha uma foto menor.' });
+  }
+  try {
+    const result = await pool.query(
+      `UPDATE users SET avatar_url = $1 WHERE id = $2 RETURNING id, name, email, avatar_url, created_at`,
+      [avatarUrl, req.userId]
+    );
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao atualizar foto de perfil.' });
+  }
+});
+
 module.exports = router;
 
 router.post('/google', async (req, res) => {
