@@ -47,6 +47,19 @@ router.get('/book/:bookId', optionalAuth, async (req, res) => {
   res.json({ reviews: result.rows });
 });
 
+router.patch('/:id', requireAuth, async (req, res) => {
+  const { rating, text } = req.body;
+  if (!rating || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: 'rating (1 a 5) é obrigatório.' });
+  }
+  const result = await pool.query(
+    `UPDATE reviews SET rating = $1, text = $2 WHERE id = $3 AND user_id = $4 RETURNING *`,
+    [rating, text || null, req.params.id, req.userId]
+  );
+  if (!result.rows.length) return res.status(404).json({ error: 'Resenha não encontrada.' });
+  res.json({ review: result.rows[0] });
+});
+
 router.delete('/:id', requireAuth, async (req, res) => {
   const result = await pool.query(
     'DELETE FROM reviews WHERE id = $1 AND user_id = $2 RETURNING id',
