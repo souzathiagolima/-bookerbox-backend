@@ -8,6 +8,7 @@ function requireAuth(req, res, next) {
   try {
     const payload = verifyToken(token);
     req.userId = payload.sub;
+    req.userEmail = payload.email;
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Token inválido ou expirado.' });

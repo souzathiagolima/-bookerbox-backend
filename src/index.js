@@ -9,6 +9,7 @@ const reviewRoutes = require('./routes/reviews');
 const userRoutes = require('./routes/users');
 const feedRoutes = require('./routes/feed');
 const notificationRoutes = require('./routes/notifications');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 app.use(cors());
@@ -23,6 +24,7 @@ app.use('/reviews', reviewRoutes);
 app.use('/users', userRoutes);
 app.use('/feed', feedRoutes);
 app.use('/notifications', notificationRoutes);
+app.use('/admin', adminRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Rota não encontrada.' }));
 
