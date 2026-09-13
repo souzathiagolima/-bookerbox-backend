@@ -17,15 +17,16 @@ router.get('/search', async (req, res) => {
 
 router.get('/:id/shelves', async (req, res) => {
   const result = await pool.query(
-    `SELECT s.status, b.id, b.title, b.authors, b.cover_url
+    `SELECT s.status, b.id, b.title, b.authors, b.cover_url,
+       (SELECT AVG(rating)::numeric(10,2) FROM reviews WHERE book_id = b.id) AS avg_rating
      FROM shelves s JOIN books b ON b.id = s.book_id
      WHERE s.user_id = $1
      ORDER BY s.updated_at DESC`,
     [req.params.id]
   );
-  const grouped = { want: [], reading: [], read: [] };
+  const grouped = { want: [], reading: [], read: [], abandoned: [] };
   result.rows.forEach(r => {
-    if (grouped[r.status]) grouped[r.status].push({ id: r.id, title: r.title, authors: r.authors, cover_url: r.cover_url });
+    if (grouped[r.status]) grouped[r.status].push({ id: r.id, title: r.title, authors: r.authors, cover_url: r.cover_url, avg_rating: r.avg_rating });
   });
   res.json(grouped);
 });

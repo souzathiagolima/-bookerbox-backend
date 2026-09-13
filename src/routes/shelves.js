@@ -7,7 +7,8 @@ router.use(requireAuth); // toda rota de estante exige login
 
 router.get('/', async (req, res) => {
   const result = await pool.query(
-    `SELECT s.*, b.title, b.authors, b.cover_url
+    `SELECT s.*, b.title, b.authors, b.cover_url,
+       (SELECT AVG(rating)::numeric(10,2) FROM reviews WHERE book_id = b.id) AS avg_rating
      FROM shelves s JOIN books b ON b.id = s.book_id
      WHERE s.user_id = $1
      ORDER BY s.updated_at DESC`,
@@ -20,8 +21,8 @@ router.get('/', async (req, res) => {
 // Chamar de novo com o mesmo status funciona como "remover" no app.
 router.put('/:bookId', async (req, res) => {
   const { status } = req.body;
-  if (!['want', 'reading', 'read'].includes(status)) {
-    return res.status(400).json({ error: 'status deve ser "want", "reading" ou "read".' });
+  if (!['want', 'reading', 'read', 'abandoned'].includes(status)) {
+    return res.status(400).json({ error: 'status deve ser "want", "reading", "read" ou "abandoned".' });
   }
   const result = await pool.query(
     `INSERT INTO shelves (user_id, book_id, status)

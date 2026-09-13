@@ -93,8 +93,70 @@ router.post('/:id/like', requireAuth, async (req, res) => {
   res.status(201).json({ liked: true });
 });
 
+router.get('/:id/likes', async (req, res) => {
+  const result = await pool.query(
+    `SELECT u.id, u.name, u.avatar_url
+     FROM likes l JOIN users u ON u.id = l.user_id
+     WHERE l.review_id = $1
+     ORDER BY l.created_at DESC`,
+    [req.params.id]
+  );
+  res.json({ likes: result.rows });
+});
+
 router.delete('/:id/like', requireAuth, async (req, res) => {
   await pool.query('DELETE FROM likes WHERE user_id = $1 AND review_id = $2', [req.userId, req.params.id]);
+  res.status(204).end();
+});
+
+router.get('/:id/comments', optionalAuth, async (req, res) => {
+  const result = await pool.query(
+    `SELECT c.*, u.name AS user_name, u.avatar_url
+     FROM comments c JOIN users u ON u.id = c.user_id
+     WHERE c.review_id = $1
+     ORDER BY c.created_at ASC`,
+    [req.params.id]
+  );
+  res.json({ comments: result.rows });
+});
+
+router.post('/:id/comments', requireAuth, async (req, res) => {
+  const { text } = req.body;
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'O comentário não pode ficar vazio.' });
+  }
+  const inserted = await pool.query(
+    `INSERT INTO comments (review_id, user_id, text) VALUES ($1, $2, $3) RETURNING *`,
+    [req.params.id, req.userId, text.trim()]
+  );
+
+  // Notifica o dono da resenha, se não for a própria pessoa comentando.
+  try {
+    const review = await pool.query('SELECT user_id, book_id FROM reviews WHERE id = $1', [req.params.id]);
+    const ownerId = review.rows[0]?.user_id;
+    if (ownerId && ownerId !== req.userId) {
+      const [me, book] = await Promise.all([
+        pool.query('SELECT name FROM users WHERE id = $1', [req.userId]),
+        pool.query('SELECT title FROM books WHERE id = $1', [review.rows[0].book_id]),
+      ]);
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, payload) VALUES ($1, 'comment', $2)`,
+        [ownerId, JSON.stringify({ actorId: req.userId, actorName: me.rows[0]?.name, bookTitle: book.rows[0]?.title })]
+      );
+    }
+  } catch (err) {
+    console.error('Falha ao criar notificação de comentário:', err.message);
+  }
+
+  res.status(201).json({ comment: inserted.rows[0] });
+});
+
+router.delete('/:reviewId/comments/:commentId', requireAuth, async (req, res) => {
+  const result = await pool.query(
+    'DELETE FROM comments WHERE id = $1 AND user_id = $2 RETURNING id',
+    [req.params.commentId, req.userId]
+  );
+  if (!result.rows.length) return res.status(404).json({ error: 'Comentário não encontrado.' });
   res.status(204).end();
 });
 
